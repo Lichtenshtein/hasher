@@ -28,12 +28,15 @@ jobs:
         shell: cmd
         run: |
           call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" ${{ matrix.platform == 'x64' && 'x64' || 'x86' }}
+          
+          set "FX_PATH=C:\Windows\Microsoft.NET\Framework\v4.0.30319"
+          
           msbuild NppHash.csproj /m ^
             /p:Configuration="${{ matrix.configuration }}" ^
             /p:Platform="${{ matrix.platform }}" ^
             /p:DevEnvDir="C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\Common7\IDE\\" ^
             /p:TargetedFrameworkDir="" ^
-            /p:FrameworkPath=""
+            /p:FrameworkPath="%FX_PATH%"
 
       - name: Prepare Artifacts
         shell: pwsh
