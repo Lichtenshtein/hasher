@@ -27,20 +27,37 @@ jobs:
       - name: Build Project
         shell: cmd
         run: |
+          for /f "usebackq tokens=*" %%i in (`"C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do (
+            set "VS_PATH=%%i"
+          )
+          
+          for /f "usebackq tokens=*" %%i in (`dir /b /ad "%VS_PATH%\VC\Tools\MSVC" ^| sort`) do (
+            set "MSVC_VER=%%i"
+          )
+
+          set "MSVC_BIN_PATH=%VS_PATH%\VC\Tools\MSVC\%MSVC_VER%\bin\HostX64\${{ matrix.platform == 'x64' && 'x64' || 'x86' }}"
+          echo --- MSVC BIN PATH: %MSVC_BIN_PATH% ---
+
           set "REF_PATH=C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.0"
           if "${{ matrix.platform }}"=="x64" (set "FX_PATH=C:\Windows\Microsoft.NET\Framework64\v4.0.30319") else (set "FX_PATH=C:\Windows\Microsoft.NET\Framework\v4.0.30319")
+
+          echo Copying tools to %REF_PATH%
           copy "%FX_PATH%\ilasm.exe" "%REF_PATH%\" /y
           copy "C:\Program Files (x86)\Microsoft SDKs\Windows\v10.0A\bin\NETFX 4.8 Tools\ildasm.exe" "%REF_PATH%\" /y
+          
+          copy "%MSVC_BIN_PATH%\lib.exe" "%REF_PATH%\" /y
+          if exist "%MSVC_BIN_PATH%\mspdb140.dll" copy "%MSVC_BIN_PATH%\mspdb140.dll" "%REF_PATH%\" /y
 
-          call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" ${{ matrix.platform == 'x64' && 'x64' || 'x86' }}
+          mkdir "%REF_PATH%\..\..\VC\bin" 2>nul
+          copy "%MSVC_BIN_PATH%\lib.exe" "%REF_PATH%\..\..\VC\bin\" /y
 
-          set "VC_BIN_PATH=C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Tools\MSVC\14.29.30133\bin\HostX64\${{ matrix.platform == 'x64' && 'x64' || 'x86' }}"
+          call "%VS_PATH%\VC\Auxiliary\Build\vcvarsall.bat" ${{ matrix.platform == 'x64' && 'x64' || 'x86' }}
           
           msbuild NppHash.csproj /m ^
             /p:Configuration="${{ matrix.configuration }}" ^
             /p:Platform="${{ matrix.platform }}" ^
-            /p:DevEnvDir="%VC_BIN_PATH%\..\..\\" ^
-            /p:TargetedFrameworkDir=""
+            /p:TargetedFrameworkDir="" ^
+            /p:DevEnvDir="%REF_PATH%\\"
 
       - name: Prepare Artifacts
         shell: pwsh
