@@ -24,32 +24,24 @@ jobs:
       - name: Add MSBuild to PATH
         uses: microsoft/setup-msbuild@v2
 
-      - name: Locate Tools and Build
+      - name: Build Project
         shell: cmd
         run: |
-          echo --- LOCATING ILASM ---
-          where /R C:\Windows\Microsoft.NET\Framework ilasm.exe
-          where /R C:\Windows\Microsoft.NET\Framework64 ilasm.exe
-          
-          echo --- LOCATING LIB ---
-          where /R "C:\Program Files (x86)\Microsoft Visual Studio" lib.exe
-          
-          call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" ${{ matrix.platform == 'x64' && 'x64' || 'x86' }}
-          
+          set "REF_PATH=C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.0"
           if "${{ matrix.platform }}"=="x64" (set "FX_PATH=C:\Windows\Microsoft.NET\Framework64\v4.0.30319") else (set "FX_PATH=C:\Windows\Microsoft.NET\Framework\v4.0.30319")
-          
-          set "FrameworkDir=C:\Windows\Microsoft.NET\Framework\"
-          set "FrameworkVersion=v4.0.30319"
-          set "FrameworkSDKRoot=C:\Program Files (x86)\Microsoft SDKs\Windows\v10.0A\"
-          
+
+          echo Copying ilasm from %FX_PATH% to %REF_PATH%
+          copy "%FX_PATH%\ilasm.exe" "%REF_PATH%\" /y
+
+          copy "C:\Program Files (x86)\Microsoft SDKs\Windows\v10.0A\bin\NETFX 4.8 Tools\ildasm.exe" "%REF_PATH%\" /y
+
+          call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" ${{ matrix.platform == 'x64' && 'x64' || 'x86' }}
+
           msbuild NppHash.csproj /m ^
             /p:Configuration="${{ matrix.configuration }}" ^
             /p:Platform="${{ matrix.platform }}" ^
             /p:DevEnvDir="C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\Common7\IDE\\" ^
-            /p:TargetedFrameworkDir="" ^
-            /p:TargetFrameworkDirectory="%FX_PATH%" ^
-            /p:FrameworkPath="%FX_PATH%" ^
-            /p:SDK40ToolsPath="C:\Program Files (x86)\Microsoft SDKs\Windows\v10.0A\bin\NETFX 4.8 Tools\\"
+            /p:TargetedFrameworkDir=""
 
       - name: Prepare Artifacts
         shell: pwsh
