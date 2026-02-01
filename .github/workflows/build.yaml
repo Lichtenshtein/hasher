@@ -37,7 +37,6 @@ jobs:
             /p:DevEnvDir="C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\Common7\IDE\\" ^
             /p:TargetedFrameworkDir="" ^
             /p:TargetFrameworkDirectory="%FX_PATH%" ^
-            /p:VisualStudioVersion=15.0 ^
             /p:FrameworkPath="%FX_PATH%"
 
       - name: Prepare Artifacts
