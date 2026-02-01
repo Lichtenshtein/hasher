@@ -34,6 +34,7 @@ jobs:
           msbuild NppHash.csproj ^
             /m ^
             /p:Configuration="${{ matrix.configuration }}" ^
+            /p:DevEnvDir="C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\Common7\IDE\" ^
             /p:Platform="${{ matrix.platform }}"
 
       - name: Prepare Artifacts
