@@ -28,7 +28,7 @@ jobs:
         shell: cmd
         run: |
           call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" ${{ matrix.platform == 'x64' && 'x64' || 'x86' }}
-          msbuild NppHash.csproj /m /p:Configuration="${{ matrix.configuration }}" /p:Platform="${{ matrix.platform }}"
+          msbuild NppHash.csproj /m /p:Configuration="${{ matrix.configuration }}" /p:Platform="${{ matrix.platform }} /p:DevEnvDir="C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\Common7\IDE\""
 
       - name: Prepare Artifacts
         shell: pwsh
