@@ -1,0 +1,127 @@
+name: Build Hasher
+
+on:
+#  push:
+#    branches: [ main, master ]
+#    tags: [ 'v*' ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-2019
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [x64, x86]
+        configuration: [Release]
+        # platform: [x64, x86, AnyCPU]
+        # configuration: [Release, Debug]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Add MSBuild to PATH
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Build Project
+        shell: cmd
+        run: |
+          for /f "usebackq tokens=*" %%i in (`"C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do (
+            set "VS_PATH=%%i"
+          )
+
+          for /f "usebackq tokens=*" %%i in (`dir /b /ad "%VS_PATH%\VC\Tools\MSVC" ^| sort`) do (
+            set "MSVC_VER=%%i"
+          )
+
+          set "MSVC_BIN_PATH=%VS_PATH%\VC\Tools\MSVC\%MSVC_VER%\bin\HostX64\${{ matrix.platform == 'x64' && 'x64' || 'x86' }}"
+          echo --- MSVC BIN PATH: %MSVC_BIN_PATH% ---
+
+          set "REF_PATH=C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.0"
+          if "${{ matrix.platform }}"=="x64" (set "FX_PATH=C:\Windows\Microsoft.NET\Framework64\v4.0.30319") else (set "FX_PATH=C:\Windows\Microsoft.NET\Framework\v4.0.30319")
+
+          echo Copying tools to %REF_PATH%
+          copy "%FX_PATH%\ilasm.exe" "%REF_PATH%\" /y
+          copy "C:\Program Files (x86)\Microsoft SDKs\Windows\v10.0A\bin\NETFX 4.8 Tools\ildasm.exe" "%REF_PATH%\" /y
+
+          copy "%MSVC_BIN_PATH%\lib.exe" "%REF_PATH%\" /y
+          if exist "%MSVC_BIN_PATH%\mspdb140.dll" copy "%MSVC_BIN_PATH%\mspdb140.dll" "%REF_PATH%\" /y
+
+          mkdir "%REF_PATH%\..\..\VC\bin" 2>nul
+          copy "%MSVC_BIN_PATH%\lib.exe" "%REF_PATH%\..\..\VC\bin\" /y
+
+          call "%VS_PATH%\VC\Auxiliary\Build\vcvarsall.bat" ${{ matrix.platform == 'x64' && 'x64' || 'x86' }}
+
+          msbuild NppHash.csproj /m ^
+            /p:Configuration="${{ matrix.configuration }}" ^
+            /p:Platform="${{ matrix.platform }}" ^
+            /p:TargetedFrameworkDir="" ^
+            /p:DevEnvDir="%REF_PATH%\\"
+
+      - name: Prepare Artifacts
+        shell: pwsh
+        run: |
+          $dllPath = if ("${{ matrix.platform }}" -eq "AnyCPU") {
+              "bin\${{ matrix.configuration }}\NppHasher.dll"
+          } else {
+              "bin\${{ matrix.platform }}\${{ matrix.configuration }}\NppHasher.dll"
+          }
+
+          if (!(Test-Path $dllPath)) {
+              Write-Error "DLL not found at expected path: $dllPath"
+              exit 1
+          }
+
+          $tagName = if ("${{ github.ref_type }}" -eq "tag") { "${{ github.ref_name }}" } else { "latest-build" }
+          $archSuffix = if ("${{ matrix.platform }}" -eq "x64") { "x64" } else { "x86" }
+          $archiveName = "NppHash_$($tagName)_$($archSuffix).7z"
+
+          7z a -t7z -mx9 $archiveName $dllPath
+
+          echo "ARCHIVE_NAME=$archiveName" >> $env:GITHUB_ENV
+          echo "RELEASE_TAG=$tagName" >> $env:GITHUB_ENV
+
+      - name: Upload to Workflow
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifacts-${{ matrix.platform }}-${{ matrix.configuration }}
+          path: ${{ env.ARCHIVE_NAME }}
+          retention-days: 1
+
+  publish:
+    needs: build
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: artifacts-*-Release
+          merge-multiple: true
+
+      - name: Set Release Tag
+        run: |
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            echo "RELEASE_TAG=${{ github.ref_name }}" >> $GITHUB_ENV
+          else
+            echo "RELEASE_TAG=latest-build" >> $GITHUB_ENV
+          fi
+
+      - name: Delete Old Release (Auto-builds only)
+        if: github.ref_type != 'tag'
+        uses: dev-drprasad/delete-tag-and-release@v1.1
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          delete_release: true
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          files: "*.7z"
+          generate_release_notes: true
+          prerelease: ${{ github.ref_type != 'tag' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
