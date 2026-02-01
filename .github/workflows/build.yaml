@@ -27,15 +27,8 @@ jobs:
       - name: Build Project
         shell: cmd
         run: |
-          # Find the path to vcvarsall.bat (for VS2019 on Windows 2019)
-          call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" ${{ matrix.platform == 'Win32' && 'x86' || matrix.platform == 'AnyCPU' && 'x86' || 'x64' }}
-          
-          # run the build in the same session where the variables are initialized (including DevEnvDir)
-          msbuild NppHash.csproj ^
-            /m ^
-            /p:Configuration="${{ matrix.configuration }}" ^
-            /p:DevEnvDir="C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\Common7\IDE\" ^
-            /p:Platform="${{ matrix.platform }}"
+          call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" ${{ matrix.platform == 'x64' && 'x64' || 'x86' }}
+          msbuild NppHash.csproj /m /p:Configuration="${{ matrix.configuration }}" /p:Platform="${{ matrix.platform }}"
 
       - name: Prepare Artifacts
         shell: pwsh
